@@ -1,6 +1,7 @@
 package com.crealytics.spark.excel
 
 import java.io.File
+import java.sql.Date
 
 import org.scalacheck.{Arbitrary, Gen, Shrink}
 import Arbitrary.{arbLong => _, arbString => _, _}
@@ -17,19 +18,19 @@ import org.apache.spark.sql.functions.lit
 object IntegrationSuite {
 
   case class ExampleData(
-    aBoolean: Boolean,
-    aByte: Byte,
-    aShort: Short,
-    anInt: Int,
-    aLong: Long,
-    aDouble: Double,
-    aString: String,
-    aDate: java.sql.Date
-  )
+                          aBoolean: Boolean,
+                          aByte: Byte,
+                          aShort: Short,
+                          anInt: Int,
+                          aLong: Long,
+                          aDouble: Double,
+                          aString: String,
+                          aDate: java.sql.Date
+                        )
 
-  val exampleDataSchema = ScalaReflection.schemaFor[ExampleData].dataType.asInstanceOf[StructType]
+  val exampleDataSchema: StructType = ScalaReflection.schemaFor[ExampleData].dataType.asInstanceOf[StructType]
 
-  implicit val arbitraryDateFourDigits = Arbitrary[java.sql.Date](
+  implicit val arbitraryDateFourDigits: Arbitrary[Date] = Arbitrary[java.sql.Date](
     Gen
       .chooseNum[Long](0L, (new java.util.Date).getTime + 1000000)
       .map(new java.sql.Date(_))
@@ -40,7 +41,9 @@ object IntegrationSuite {
   // We're restricting our tests to Int-sized Longs in order not to fail
   // because of this issue.
   implicit val arbitraryLongWithLosslessDoubleConvertability: Arbitrary[Long] =
-    Arbitrary[Long] { arbitrary[Int].map(_.toLong) }
+  Arbitrary[Long] {
+    arbitrary[Int].map(_.toLong)
+  }
 
   implicit val arbitraryStringWithoutUnicodeCharacters: Arbitrary[String] =
     Arbitrary[String](Gen.alphaNumStr)
@@ -50,26 +53,26 @@ object IntegrationSuite {
 }
 
 class IntegrationSuite extends FunSuite with PropertyChecks with DataFrameSuiteBase {
+
   import IntegrationSuite._
 
   import spark.implicits._
 
   implicit def shrinkOnlyNumberOfRows[A]: Shrink[List[A]] = Shrink.shrinkContainer[List, A]
 
-  val PackageName = "com.crealytics.spark.excel"
   val sheetName = "test sheet"
 
-  def writeThenRead(df: DataFrame): DataFrame = {
+  def writeThenRead(df: DataFrame, packageName: String): DataFrame = {
     val fileName = File.createTempFile("spark_excel_test_", ".xlsx").getAbsolutePath
 
     df.write
-      .format(PackageName)
+      .format(packageName)
       .option("sheetName", sheetName)
       .option("useHeader", "true")
       .mode("overwrite")
       .save(fileName)
 
-    spark.read.format(PackageName)
+    spark.read.format(packageName)
       .option("sheetName", sheetName)
       .option("useHeader", "true")
       .option("treatEmptyValuesAsNulls", "true")
@@ -83,7 +86,15 @@ class IntegrationSuite extends FunSuite with PropertyChecks with DataFrameSuiteB
     forAll(rowsGen, MinSuccessful(20)) { rows =>
       val expected = spark.createDataset(rows).toDF
 
-      assertDataFrameEquals(expected, writeThenRead(expected))
+      assertDataFrameEquals(expected, writeThenRead(expected, "com.crealytics.spark.excel"))
+    }
+  }
+
+  test("parses known datatypes correctly using executor-based") {
+    forAll(rowsGen, MinSuccessful(20)) { rows =>
+      val expected = spark.createDataset(rows).toDF
+
+      assertDataFrameEquals(expected, writeThenRead(expected, "com.crealytics.spark.excel.executor"))
     }
   }
 
@@ -98,9 +109,9 @@ class IntegrationSuite extends FunSuite with PropertyChecks with DataFrameSuiteB
       // Generate the same DataFrame but with empty strings
       val expectedWithEmptyStr = expected.withColumn("aString", lit("": String))
       // Set the schema so that aString is nullable
-      expectedWithEmptyStr.schema.fields.update(6, StructField("aString", DataTypes.StringType, true))
+      expectedWithEmptyStr.schema.fields.update(6, StructField("aString", DataTypes.StringType, nullable = true))
 
-      assertDataFrameEquals(expectedWithEmptyStr, writeThenRead(expectedWithNull))
+      assertDataFrameEquals(expectedWithEmptyStr, writeThenRead(expectedWithNull, "com.crealytics.spark.excel"))
     }
   }
 }
