@@ -15,7 +15,8 @@ case class ExcelRelation(
                           addColorColumns: Boolean = true,
                           userSchema: Option[StructType] = None,
                           startColumn: Int = 0,
-                          endColumn: Int = Int.MaxValue
+                          endColumn: Int = Int.MaxValue,
+                          timestampFormat: Option[String] = None
                         )
                         (@transient val sqlContext: SQLContext)
   extends BaseRelation with TableScan with PrunedScan {
@@ -25,7 +26,8 @@ case class ExcelRelation(
     inputStream,
     sheetName,
     startColumn,
-    endColumn)
+    endColumn,
+    timestampFormat)
   private lazy val firstRowWithData = extractor.firstRowWithData
 
   override val schema: StructType = inferSchema

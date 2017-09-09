@@ -3,6 +3,7 @@ package com.crealytics.spark.excel
 import java.io.InputStream
 import java.math.BigDecimal
 import java.sql.Timestamp
+import java.text.SimpleDateFormat
 
 import org.apache.poi.ss.usermodel.{WorkbookFactory, Row => SheetRow, _}
 import org.apache.spark.sql.types._
@@ -13,11 +14,21 @@ case class Extractor(useHeader: Boolean,
                      inputStream: InputStream,
                      sheetName: Option[String],
                      startColumn: Int = 0,
-                     endColumn: Int = Int.MaxValue) {
+                     endColumn: Int = Int.MaxValue,
+                     timestampFormat: Option[String] = None) {
   private lazy val workbook = WorkbookFactory.create(inputStream)
   private lazy val sheet = findSheet(workbook, sheetName)
 
-  import com.crealytics.spark.excel.RichRow._
+  import com.crealytics.spark.excel.utils.RichRow._
+
+  private val timestampParser = timestampFormat.map(d => new SimpleDateFormat(d))
+
+  private def parseTimestamp(stringValue: String): Timestamp = {
+    timestampParser match {
+      case Some(parser) => new Timestamp(parser.parse(stringValue).getTime)
+      case None => Timestamp.valueOf(stringValue)
+    }
+  }
 
   def firstRowWithData: Vector[Option[Cell]] = sheet.asScala
     .find(_ != null)
@@ -68,7 +79,7 @@ case class Extractor(useHeader: Boolean,
       case _: DoubleType => numericValue
       case _: BooleanType => cell.getBooleanCellValue
       case _: DecimalType => bigDecimal
-      case _: TimestampType => Timestamp.valueOf(stringValue)
+      case _: TimestampType => parseTimestamp(stringValue)
       case _: DateType => new java.sql.Date(DateUtil.getJavaDate(numericValue).getTime)
       case _: StringType => stringValue
       case t => throw new RuntimeException(s"Unsupported cast from $cell to $t")
@@ -98,6 +109,5 @@ case class Extractor(useHeader: Boolean,
       cell.fold(Cell.CELL_TYPE_BLANK)(_.getCellType)
     }.toVector
   }.toVector
-
 }
 
