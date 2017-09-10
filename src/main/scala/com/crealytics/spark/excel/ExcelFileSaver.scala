@@ -1,5 +1,6 @@
 package com.crealytics.spark.excel
 
+import java.sql.Timestamp
 import java.text.SimpleDateFormat
 
 import com.norbitltd.spoiwo.natures.xlsx.Model2XlsxConversions._
@@ -18,17 +19,17 @@ object ExcelFileSaver {
 class ExcelFileSaver(fs: FileSystem) {
   import ExcelFileSaver._
   def save(
-            location: Path,
-            dataFrame: DataFrame,
-            sheetName: String = DEFAULT_SHEET_NAME,
-            useHeader: Boolean = true,
-            timestampFormat: String = DEFAULT_TIMESTAMP_FORMAT
-          ): Unit = {
+    location: Path,
+    dataFrame: DataFrame,
+    sheetName: String = DEFAULT_SHEET_NAME,
+    useHeader: Boolean = true,
+    timestampFormat: String = DEFAULT_TIMESTAMP_FORMAT
+  ): Unit = {
     val headerRow = Row(dataFrame.schema.fields.map(f => Cell(f.name)))
     val timestampFormatter = new SimpleDateFormat(timestampFormat)
     val dataRows = dataFrame.toLocalIterator().asScala.map { row =>
-      Row(row.toSeq.map(toCell(_, timestampFormatter)))
-    }.toList
+        Row(row.toSeq.map(toCell(_, timestampFormatter)))
+      }.toList
     val rows = if (useHeader) headerRow :: dataRows else dataRows
     val workbook = Sheet(name = sheetName, rows = rows).convertAsXlsx
     val outputStream = fs.create(location)

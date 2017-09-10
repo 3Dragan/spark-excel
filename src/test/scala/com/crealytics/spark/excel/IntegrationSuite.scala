@@ -3,6 +3,7 @@ package com.crealytics.spark.excel
 import java.io.File
 import java.sql.{Date, Timestamp}
 
+
 import org.scalacheck.{Arbitrary, Gen, Shrink}
 import Arbitrary.{arbLong => _, arbString => _, _}
 import org.scalacheck.ScalacheckShapeless._
@@ -42,6 +43,7 @@ object IntegrationSuite {
       .chooseNum[Long](0L, (new java.util.Date).getTime + 1000000)
       .map(new java.sql.Timestamp(_))
   )
+
 
   // Unfortunately we're losing some precision when parsing Longs
   // due to the fact that we have to read them as Doubles and then cast.
